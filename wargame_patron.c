@@ -1,5 +1,7 @@
-
-
+//git add .                        # prepare toutes les modifications pour le commit
+//git commit -m "Description"      # enregistre une version avec un message
+//git push                         # envoie les commits sur GitHub
+//gcc -Wall -g -o wargame wargame_patron.c
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,6 +10,7 @@
 #define NB_LIGNES 10
 #define NB_COLONNES 10
 #define INFINI 10000
+#define PROF_MAX 3 //profondeur max de l'algo minimax
 
 /*#define DEBUG*/
 
@@ -22,6 +25,10 @@ Pion *plateauDeJeu;
 void f_affiche_plateau(Pion *plateau);
 int f_convert_char2int(char c);
 char f_convert_int2char(int i);
+
+int f_min(int noeud,int profondeur);
+int f_max(int noeud,int profondeur);
+
 
 
 
@@ -314,7 +321,7 @@ int f_test_mouvement(Pion *plateau, int l1, int c1, int l2, int c2, int couleur)
 		return 1;
 
 	if(l1-l2 >1 || l2-l1 >1 || c1-c2 >1 || c2-c1 >1 || (l1==l2 && c1==c2))
-		retour = 1;
+		return 1;
 #ifdef DEBUG
 	printf("dbg: exiting %s %d\n", __FUNCTION__, __LINE__);
 #endif
@@ -414,7 +421,7 @@ int f_valeur(Pion* jeu, int joueur)
 //fonction d'évaluation
 int f_eval(Pion* jeu,int joueur)
 {
-	/** A vous de trouver une fonction efficace **/
+	return f_valeur(jeu,joueur) - f_valeur(jeu,-joueur);
 }
 
 //copie du plateau
@@ -448,17 +455,51 @@ Pion* f_raz_plateau()
 	return jeu;
 }
 
-//Fonction min trouve le minimum des noeuds fils
-??? f_min(???)
-		{
-	/** A remplir **/
-		}
 
+int f_min(int noeud,int profondeur)
+{
+
+}
+
+//Fonction min trouve le minimum des noeuds fils
+//??? f_min(???)
+		
+	/** function fmax(noeud, profondeur) is;
+			if profondeur maximale atteinte then
+			return eval(noeud);
+			else
+			value = -∞ ;
+			for chaque fils(noeud) do
+			value = max(value, fmin(fils, profondeur - 1));
+			end
+			return value;
+		end
+		**/
+		
+int f_max(int noeud,int profondeur)
+{
+	if(profondeur==PROF_MAX)
+	{
+		return f_eval(noeud,1);
+	}else{
+
+	}
+}
 //Fonction max trouve le maximum des noeuds fils
-??? f_max(???)
-		{
-	/** A remplir **/
-		}
+//??? f_max(???)
+		
+	/** function fmin(noeud, profondeur) is;
+			if profondeur maximale atteinte then
+			return eval(noeud);
+			else
+			value = +∞;
+			for chaque fils(noeud) do
+			value = min(value, fmax(fils, profondeur - 1));
+			end
+		return value;
+		end
+ **/
+		
 
 /**
  * Calcule et joue le meilleur cout
@@ -526,6 +567,7 @@ int main(int argv, char *argc[])
 	int fin = 0,mode=0 , ret, joueur = 1;
 	printf("1 humain vs IA\n2 humain vs humain\n3 IA vs IA\n");
 	scanf("%d",&mode);
+	getchar();
 
 	plateauDeJeu = f_init_plateau();
 	while (!fin)
