@@ -6,11 +6,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-
 #define NB_LIGNES 10
 #define NB_COLONNES 10
 #define INFINI 10000
 #define PROF_MAX 3 //profondeur max de l'algo minimax
+
+
+#define MAX(a, b) ((a) > (b) ? (a) : (b)) //car n'existe pas de MAX et MIN
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 /*#define DEBUG*/
 
@@ -26,8 +29,8 @@ void f_affiche_plateau(Pion *plateau);
 int f_convert_char2int(char c);
 char f_convert_int2char(int i);
 
-int f_min(int noeud,int profondeur);
-int f_max(int noeud,int profondeur);
+int f_min(Pion* plateau, int profondeur);
+int f_max(Pion* plateau, int profondeur);
 
 
 
@@ -456,49 +459,92 @@ Pion* f_raz_plateau()
 }
 
 
-int f_min(int noeud,int profondeur)
+/**
+ * Fonction f_min : Minimise le score (tour de l'adversaire : o).
+ * Explore tous les mouvements possibles pour les pions du joueur -1,
+ * simule chaque coup sur une copie du plateau, puis appelle f_max 
+ * pour le tour suivant. Renvoie le pire score (minimum) pour le joueur 1.
+ */
+int f_min(Pion* plateau, int profondeur)
 {
-
+    if(profondeur == 0)
+    {
+        return f_eval(plateau, 1);
+    }
+    else
+    {
+        int pire_score = INFINI;
+        
+        for (int i1 = 0; i1 < NB_LIGNES; i1++)
+        {
+            for (int j1 = 0; j1 < NB_COLONNES; j1++)
+            {
+                if (plateau[i1 * NB_COLONNES + j1].couleur == -1)
+                {
+                    for (int i2 = 0; i2 < NB_LIGNES; i2++)
+                    {
+                        for (int j2 = 0; j2 < NB_COLONNES; j2++)
+                        {
+                            if (f_test_mouvement(plateau, i1, j1, i2, j2, -1) == 0)
+                            {
+                                Pion* copie = f_raz_plateau();
+                                f_copie_plateau(plateau, copie);
+                                f_bouge_piece(copie, i1, j1, i2, j2, -1);
+                                int score = f_max(copie, profondeur - 1);
+                                pire_score = MIN(pire_score, score);
+                                free(copie);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return pire_score;
+    }
 }
 
-//Fonction min trouve le minimum des noeuds fils
-//??? f_min(???)
-		
-	/** function fmax(noeud, profondeur) is;
-			if profondeur maximale atteinte then
-			return eval(noeud);
-			else
-			value = -∞ ;
-			for chaque fils(noeud) do
-			value = max(value, fmin(fils, profondeur - 1));
-			end
-			return value;
-		end
-		**/
-		
-int f_max(int noeud,int profondeur)
+/**
+ * Fonction f_max : Maximise le score du joueur 1 (x).
+ * Explore tous les mouvements possibles pour les pions du joueur 1,
+ * simule chaque coup sur une copie du plateau, puis appelle f_min 
+ * pour simuler le tour de l'adversaire (en décrémentant la profondeur).
+ * Renvoie le meilleur score (maximum) qu'il est possible d'obtenir.
+ */
+int f_max(Pion* plateau, int profondeur)
 {
-	if(profondeur==PROF_MAX)
+	if(profondeur==0)
 	{
-		return f_eval(noeud,1);
+		return f_eval(plateau,1);
 	}else{
-
+		int meilleur_score = -INFINI;
+		
+		for ( int i1= 0; i1 < NB_LIGNES; i1++)
+		{
+			for (int j1 = 0; j1 < NB_COLONNES; j1++)
+			{
+				if (plateau[i1 * NB_COLONNES + j1].couleur == 1)
+				{
+					for (int i2 = 0; i2 < NB_LIGNES; i2++)
+					{
+						for (int j2 = 0; j2 < NB_COLONNES; j2++)
+						{
+							if (f_test_mouvement(plateau, i1, j1, i2, j2, 1) == 0)
+							{
+								Pion* copie = f_raz_plateau();
+								f_copie_plateau(plateau, copie);
+								f_bouge_piece(copie, i1, j1, i2, j2, 1);
+								int score = f_min(copie, profondeur - 1);
+								meilleur_score = MAX(meilleur_score, score);
+								free(copie);
+							}
+						}
+					}
+				}
+			}
+		}
+		return meilleur_score;
 	}
 }
-//Fonction max trouve le maximum des noeuds fils
-//??? f_max(???)
-		
-	/** function fmin(noeud, profondeur) is;
-			if profondeur maximale atteinte then
-			return eval(noeud);
-			else
-			value = +∞;
-			for chaque fils(noeud) do
-			value = min(value, fmax(fils, profondeur - 1));
-			end
-		return value;
-		end
- **/
 		
 
 /**
@@ -570,6 +616,7 @@ int main(int argv, char *argc[])
 	getchar();
 
 	plateauDeJeu = f_init_plateau();
+
 	while (!fin)
 	{
 		f_affiche_plateau(plateauDeJeu);
