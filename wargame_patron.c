@@ -29,9 +29,9 @@ void f_affiche_plateau(Pion *plateau);
 int f_convert_char2int(char c);
 char f_convert_int2char(int i);
 
-int f_min(Pion* plateau, int profondeur);
-int f_max(Pion* plateau, int profondeur);
-
+int f_min(Pion* plateau, int profondeur, int alpha, int beta);
+int f_max(Pion* plateau, int profondeur, int alpha, int beta);
+int f_avance(Pion* plateau, int joueur);
 
 
 
@@ -421,10 +421,27 @@ int f_valeur(Pion* jeu, int joueur)
 	return valeur;
 }
 
-//fonction d'évaluation
+/**
+ * Prend l'état du jeu et le numéro du joueur
+ * 	évalue la position (victoire, nombre de pions, avancement et matériel)
+ * Renvoie un score positif si favorable, négatif si défavorable, ou +/- INFINI en cas de fin de partie
+ */
 int f_eval(Pion* jeu,int joueur)
 {
-	return f_valeur(jeu,joueur) - f_valeur(jeu,-joueur);
+	for(int k = 0; k < NB_COLONNES; k++)
+	{
+		if(jeu[k].couleur == 1)
+			return joueur * INFINI;       
+		if(jeu[(NB_LIGNES-1)*NB_COLONNES + k].couleur == -1)
+			return -joueur * INFINI;      
+	}
+
+
+	int nbPions = f_nbPions(jeu, joueur) - f_nbPions(jeu, -joueur);
+	int avance = f_avance(jeu, joueur) - f_avance(jeu, -joueur);
+	int materiel = f_valeur(jeu, joueur) - f_valeur(jeu, -joueur);
+
+	return 10 * nbPions + 5 * avance + 2 * materiel;
 }
 
 //copie du plateau
@@ -460,12 +477,14 @@ Pion* f_raz_plateau()
 
 
 /**
- * Fonction f_min : Minimise le score (tour de l'adversaire : o).
- * Explore tous les mouvements possibles pour les pions du joueur -1,
- * simule chaque coup sur une copie du plateau, puis appelle f_max 
- * pour le tour suivant. Renvoie le pire score (minimum) pour le joueur 1.
+ * Fonction f_min : Minimise le score (tour de l'adversaire : -1 / o).
+ * Explore les mouvements possibles pour le joueur -1, simule chaque coup 
+ * sur une copie du plateau, appelle f_max et applique l'élagage Alpha-Bêta 
+ * (arrête l'exploration si beta <= alpha).
+ * Renvoie le pire score (minimum) pour le joueur 1.
  */
-int f_min(Pion* plateau, int profondeur)
+
+int f_min(Pion* plateau, int profondeur, int alpha, int beta)
 {
     if(profondeur == 0)
     {
@@ -490,9 +509,16 @@ int f_min(Pion* plateau, int profondeur)
                                 Pion* copie = f_raz_plateau();
                                 f_copie_plateau(plateau, copie);
                                 f_bouge_piece(copie, i1, j1, i2, j2, -1);
-                                int score = f_max(copie, profondeur - 1);
+                                int score = f_max(copie, profondeur - 1, alpha, beta);
                                 pire_score = MIN(pire_score, score);
                                 free(copie);
+
+								beta = MIN(beta, pire_score);
+
+								if ( beta <= alpha )
+								{
+									return pire_score;
+								}
                             }
                         }
                     }
@@ -504,13 +530,14 @@ int f_min(Pion* plateau, int profondeur)
 }
 
 /**
- * Fonction f_max : Maximise le score du joueur 1 (x).
- * Explore tous les mouvements possibles pour les pions du joueur 1,
- * simule chaque coup sur une copie du plateau, puis appelle f_min 
- * pour simuler le tour de l'adversaire (en décrémentant la profondeur).
+ * Fonction f_max : Maximise le score du joueur 1 (1 / x).
+ * Explore les mouvements possibles pour le joueur 1, simule chaque coup 
+ * sur une copie du plateau, appelle f_min et applique l'élagage Alpha-Bêta 
+ * (arrête l'exploration si beta <= alpha).
  * Renvoie le meilleur score (maximum) qu'il est possible d'obtenir.
  */
-int f_max(Pion* plateau, int profondeur)
+
+int f_max(Pion* plateau, int profondeur, int alpha, int beta)
 {
 	if(profondeur==0)
 	{
@@ -533,9 +560,16 @@ int f_max(Pion* plateau, int profondeur)
 								Pion* copie = f_raz_plateau();
 								f_copie_plateau(plateau, copie);
 								f_bouge_piece(copie, i1, j1, i2, j2, 1);
-								int score = f_min(copie, profondeur - 1);
+								int score = f_min(copie, profondeur - 1, alpha, beta);
 								meilleur_score = MAX(meilleur_score, score);
 								free(copie);
+
+								alpha = MAX(alpha, meilleur_score);
+
+								if ( beta <= alpha )
+								{
+									return meilleur_score;
+								}
 							}
 						}
 					}
@@ -545,7 +579,29 @@ int f_max(Pion* plateau, int profondeur)
 		return meilleur_score;
 	}
 }
-		
+
+/* Somme de l'avancement des pions du joueur,
+ * un pion proche de la ligne adverse rapporte plus. 
+ */
+
+int f_avance(Pion *plateau, int joueur) 
+{
+    int total = 0;
+    for (int i = 0; i < NB_LIGNES; i++) 
+	{
+        for (int j = 0; j < NB_COLONNES; j++) 
+		{
+            if (plateau[i * NB_COLONNES + j].couleur == joueur) 
+			{
+                if (joueur == 1) 
+				{
+                    total += NB_LIGNES - 1 - i;
+                } else { total += i; }
+            }
+        }
+    }  
+    return total;
+}
 
 /**
  * Calcule et joue le meilleur cout
