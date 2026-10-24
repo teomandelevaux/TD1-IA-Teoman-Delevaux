@@ -9,7 +9,7 @@
 #define NB_LIGNES 10
 #define NB_COLONNES 10
 #define INFINI 10000
-#define PROF_MAX 3 //profondeur max de l'algo minimax
+#define PROF_MAX 2 //profondeur max de l'algo minimax qui est de 3 (2+1)
 
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b)) //car n'existe pas de MAX et MIN
@@ -266,39 +266,38 @@ int f_gagnant()
  * 	pour laquelle la bataille a lieu
  * Renvoie le couleur du gagnant
  * */
-int f_bataille(int l, int c)
+int f_bataille(Pion *plateau, int l, int c)
 {
-	int i, j, mini, maxi, minj, maxj;
-	int somme=0;
+    int i, j, mini, maxi, minj, maxj;
+    int somme = 0;
 
 #ifdef DEBUG
-	printf("dbg: entering %s %d\n", __FUNCTION__, __LINE__);
+    printf("dbg: entering %s %d\n", __FUNCTION__, __LINE__);
 #endif
-	mini = l-1<0?0:l-1;
-	maxi = l+1>NB_LIGNES-1?NB_LIGNES-1:l+1;
-	minj = c-1<0?0:c-1;
-	maxj = c+1>NB_COLONNES-1?NB_COLONNES-1:c+1;
+    mini = (l - 1 < 0) ? 0 : l - 1;
+    maxi = (l + 1 > NB_LIGNES - 1) ? NB_LIGNES - 1 : l + 1;
+    minj = (c - 1 < 0) ? 0 : c - 1;
+    maxj = (c + 1 > NB_COLONNES - 1) ? NB_COLONNES - 1 : c + 1;
 
-	for(i=mini; i<=maxi; i++)
-	{
-		for(j=minj; j<=maxj; j++)
-		{
-			somme += plateauDeJeu[i*NB_COLONNES+j].couleur*plateauDeJeu[i*NB_COLONNES+j].valeur;
-		}
-	}
-	somme -= plateauDeJeu[l*NB_COLONNES+c].couleur*plateauDeJeu[l*NB_COLONNES+c].valeur;
+    for (i = mini; i <= maxi; i++)
+    {
+        for (j = minj; j <= maxj; j++)
+        {
+            somme += plateau[i * NB_COLONNES + j].couleur * plateau[i * NB_COLONNES + j].valeur;
+        }
+    }
+    somme -= plateau[l * NB_COLONNES + c].couleur * plateau[l * NB_COLONNES + c].valeur;
 
 #ifdef DEBUG
-	printf("dbg: exiting %s %d\n", __FUNCTION__, __LINE__);
+    printf("dbg: exiting %s %d\n", __FUNCTION__, __LINE__);
 #endif
-	if(somme < 0)
-		return -1;
-	if(somme > 0)
-		return 1;
+    if (somme < 0)
+        return -1;
+    if (somme > 0)
+        return 1;
 
-	return plateauDeJeu[l*NB_COLONNES+c].couleur;
+    return plateau[l * NB_COLONNES + c].couleur;
 }
-
 
 /**
  * Prend la ligne et colonne de la case d'origine
@@ -362,7 +361,7 @@ int f_bouge_piece(Pion *plateau, int l1, int c1, int l2, int c2, int couleur)
 	}
 	else
 	{
-		gagnant=f_bataille(l2, c2);
+		gagnant=f_bataille(plateau, l2, c2);
 		/* victoire */
 		if(gagnant == couleur)
 		{
@@ -421,8 +420,47 @@ int f_valeur(Pion* jeu, int joueur)
 	return valeur;
 }
 
+/* un pion près des colonnes centrales (E, F) est plus polyvalent
+ * qu'un pion sur le bord. Bonus de 0 (bord) à 8 (centre) par pion.
+ * Sert surtout à départager des coups qui seraient sinon a egalite */
+int f_centre(Pion *plateau, int joueur)
+{
+	int total = 0;
+	for(int i = 0; i < NB_LIGNES; i++)
+		for(int j = 0; j < NB_COLONNES; j++)
+			if(plateau[i*NB_COLONNES+j].couleur == joueur)
+			{
+				int dist = abs(2*j - (NB_COLONNES-1));  
+				total += (NB_COLONNES - dist);
+			}
+	return total;
+}
+
+/* un pion isolé n'a aucun allié parmi ses 8 voisins,
+ * comme f_bataille() compare les sommes des voisins, un pion seul n'est
+ * soutenu par personne et perd facilement son combat. */
+int f_isoles(Pion *plateau, int joueur)
+{
+	int n = 0;
+	for(int i = 0; i < NB_LIGNES; i++)
+		for(int j = 0; j < NB_COLONNES; j++)
+		{
+			if(plateau[i*NB_COLONNES+j].couleur != joueur)
+				continue;
+
+			int allies = 0;
+			for(int a = MAX(0, i-1); a <= MIN(NB_LIGNES-1, i+1); a++)
+				for(int b = MAX(0, j-1); b <= MIN(NB_COLONNES-1, j+1); b++)
+					if((a != i || b != j) && plateau[a*NB_COLONNES+b].couleur == joueur)
+						allies++;
+
+			if(allies == 0){n++;}
+		}
+	return n;
+}
+
 /**
- * Prend l'état du jeu et le numéro du joueur
+ * Prend l'etat du jeu et le numéro du joueur
  * 	évalue la position (victoire, nombre de pions, avancement et matériel)
  * Renvoie un score positif si favorable, négatif si défavorable, ou +/- INFINI en cas de fin de partie
  */
@@ -440,8 +478,10 @@ int f_eval(Pion* jeu,int joueur)
 	int nbPions = f_nbPions(jeu, joueur) - f_nbPions(jeu, -joueur);
 	int avance = f_avance(jeu, joueur) - f_avance(jeu, -joueur);
 	int materiel = f_valeur(jeu, joueur) - f_valeur(jeu, -joueur);
+	int centre = f_centre(jeu, joueur) - f_centre(jeu, -joueur);
+	int isoles = f_isoles(jeu, joueur) - f_isoles(jeu, -joueur);
 
-	return 10 * nbPions + 5 * avance + 2 * materiel;
+	return 10 * nbPions + 5 * avance + 2 * materiel + centre - 5 * isoles;
 }
 
 //copie du plateau
@@ -608,11 +648,66 @@ int f_avance(Pion *plateau, int joueur)
  * */
 void f_IA(int joueur)
 {
+
+	int alpha = -INFINI, beta = INFINI;
+	int meilleur = (joueur == 1) ? -INFINI - 1 : INFINI + 1;
+	int bl1 = -1, bc1 = -1, bl2 = -1, bc2 = -1;
+
 #ifdef DEBUG
 	printf("dbg: entering %s %d\n", __FUNCTION__, __LINE__);
 #endif
 
-	/** A remplir **/
+	for(int i1 = 0; i1 < NB_LIGNES; i1++)
+	{
+		for(int j1 = 0; j1 < NB_COLONNES; j1++)
+		{
+			if(plateauDeJeu[i1*NB_COLONNES+j1].couleur != joueur)
+				continue;
+
+			for(int i2 = MAX(0, i1-1); i2 <= MIN(NB_LIGNES-1, i1+1); i2++)
+			{
+				for(int j2 = MAX(0, j1-1); j2 <= MIN(NB_COLONNES-1, j1+1); j2++)
+				{
+					if(f_test_mouvement(plateauDeJeu, i1, j1, i2, j2, joueur) != 0)
+						continue;
+
+					Pion *copie = f_raz_plateau();
+					f_copie_plateau(plateauDeJeu, copie);
+					f_bouge_piece(copie, i1, j1, i2, j2, joueur);
+
+					int score;
+					if (joueur == 1) {
+						score = f_min(copie, PROF_MAX - 1, alpha, beta);
+					} else {
+						score = f_max(copie, PROF_MAX - 1, alpha, beta);
+					}
+					free(copie);
+
+					if(joueur == 1 && score > meilleur)
+					{
+						meilleur = score; 
+						alpha = MAX(alpha, score);
+						bl1 = i1; bc1 = j1; 
+						bl2 = i2; bc2 = j2;
+					}
+					else if(joueur == -1 && score < meilleur)
+					{
+						meilleur = score; 
+						beta = MIN(beta, score);
+						bl1 = i1; bc1 = j1; 
+						bl2 = i2; bc2 = j2;
+					}
+				}
+			}
+		}
+	}
+
+	if(bl1 != -1)
+	{
+		printf("IA %c joue : %c%d -> %c%d (score %d)\n", joueur == 1 ? 'x' : 'o',
+		       f_convert_int2char(bc1), bl1, f_convert_int2char(bc2), bl2, meilleur);
+		f_bouge_piece(plateauDeJeu, bl1, bc1, bl2, bc2, joueur);
+	}
 
 #ifdef DEBUG
 	printf("dbg: exiting %s %d\n", __FUNCTION__, __LINE__);
