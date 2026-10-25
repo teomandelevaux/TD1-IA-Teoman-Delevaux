@@ -5,11 +5,24 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #define NB_LIGNES 10
 #define NB_COLONNES 10
 #define INFINI 10000
-#define PROF_MAX 2 //profondeur max de l'algo minimax qui est de 3 (2+1)
+
+
+int PROF_MAX = 3; //profondeur max de l'algo minimax 
+int elagage = 1; //1 pour activer l'élagage alpha-beta, 0 pour le désactiver
+long nb_noeuds = 0;
+
+long cumul_noeuds_x = 0;
+double cumul_temps_x = 0.0;
+int nb_coups_x = 0;
+
+long cumul_noeuds_o = 0;
+double cumul_temps_o = 0.0;
+int nb_coups_o = 0;
 
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b)) //car n'existe pas de MAX et MIN
@@ -24,6 +37,7 @@ typedef struct pion_s
 }Pion;
 
 Pion *plateauDeJeu;
+
 
 void f_affiche_plateau(Pion *plateau);
 int f_convert_char2int(char c);
@@ -526,47 +540,38 @@ Pion* f_raz_plateau()
 
 int f_min(Pion* plateau, int profondeur, int alpha, int beta)
 {
-    if(profondeur == 0)
-    {
-        return f_eval(plateau, 1);
-    }
-    else
-    {
-        int pire_score = INFINI;
-        
-        for (int i1 = 0; i1 < NB_LIGNES; i1++)
-        {
-            for (int j1 = 0; j1 < NB_COLONNES; j1++)
-            {
-                if (plateau[i1 * NB_COLONNES + j1].couleur == -1)
-                {
-                    for (int i2 = 0; i2 < NB_LIGNES; i2++)
-                    {
-                        for (int j2 = 0; j2 < NB_COLONNES; j2++)
-                        {
-                            if (f_test_mouvement(plateau, i1, j1, i2, j2, -1) == 0)
-                            {
-                                Pion* copie = f_raz_plateau();
-                                f_copie_plateau(plateau, copie);
-                                f_bouge_piece(copie, i1, j1, i2, j2, -1);
-                                int score = f_max(copie, profondeur - 1, alpha, beta);
-                                pire_score = MIN(pire_score, score);
-                                free(copie);
+	nb_noeuds++;
 
-								beta = MIN(beta, pire_score);
+	if(profondeur == 0)
+		return f_eval(plateau, 1);
 
-								if ( beta <= alpha )
-								{
-									return pire_score;
-								}
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        return pire_score;
-    }
+	int pire_score = INFINI;
+
+	for(int i1 = 0; i1 < NB_LIGNES; i1++)
+	for(int j1 = 0; j1 < NB_COLONNES; j1++)
+	{
+		if(plateau[i1*NB_COLONNES+j1].couleur != -1)
+			continue;
+
+		for(int i2 = MAX(0, i1-1); i2 <= MIN(NB_LIGNES-1, i1+1); i2++)
+		for(int j2 = MAX(0, j1-1); j2 <= MIN(NB_COLONNES-1, j1+1); j2++)
+		{
+			if(f_test_mouvement(plateau, i1, j1, i2, j2, -1) != 0)
+				continue;
+
+			Pion copie[NB_LIGNES*NB_COLONNES];   /* copie sur la pile, pas de malloc */
+			f_copie_plateau(plateau, copie);
+			f_bouge_piece(copie, i1, j1, i2, j2, -1);
+
+			int score = f_max(copie, profondeur - 1, alpha, beta);
+			pire_score = MIN(pire_score, score);
+			beta = MIN(beta, pire_score);
+
+			if(elagage && beta <= alpha)
+				return pire_score;
+		}
+	}
+	return pire_score;
 }
 
 /**
@@ -579,45 +584,38 @@ int f_min(Pion* plateau, int profondeur, int alpha, int beta)
 
 int f_max(Pion* plateau, int profondeur, int alpha, int beta)
 {
-	if(profondeur==0)
+	nb_noeuds++;
+
+	if(profondeur == 0)
+		return f_eval(plateau, 1);
+
+	int meilleur_score = -INFINI;
+
+	for(int i1 = 0; i1 < NB_LIGNES; i1++)
+	for(int j1 = 0; j1 < NB_COLONNES; j1++)
 	{
-		return f_eval(plateau,1);
-	}else{
-		int meilleur_score = -INFINI;
-		
-		for ( int i1= 0; i1 < NB_LIGNES; i1++)
+		if(plateau[i1*NB_COLONNES+j1].couleur != 1)
+			continue;
+
+		for(int i2 = MAX(0, i1-1); i2 <= MIN(NB_LIGNES-1, i1+1); i2++)
+		for(int j2 = MAX(0, j1-1); j2 <= MIN(NB_COLONNES-1, j1+1); j2++)
 		{
-			for (int j1 = 0; j1 < NB_COLONNES; j1++)
-			{
-				if (plateau[i1 * NB_COLONNES + j1].couleur == 1)
-				{
-					for (int i2 = 0; i2 < NB_LIGNES; i2++)
-					{
-						for (int j2 = 0; j2 < NB_COLONNES; j2++)
-						{
-							if (f_test_mouvement(plateau, i1, j1, i2, j2, 1) == 0)
-							{
-								Pion* copie = f_raz_plateau();
-								f_copie_plateau(plateau, copie);
-								f_bouge_piece(copie, i1, j1, i2, j2, 1);
-								int score = f_min(copie, profondeur - 1, alpha, beta);
-								meilleur_score = MAX(meilleur_score, score);
-								free(copie);
+			if(f_test_mouvement(plateau, i1, j1, i2, j2, 1) != 0)
+				continue;
 
-								alpha = MAX(alpha, meilleur_score);
+			Pion copie[NB_LIGNES*NB_COLONNES];
+			f_copie_plateau(plateau, copie);
+			f_bouge_piece(copie, i1, j1, i2, j2, 1);
 
-								if ( beta <= alpha )
-								{
-									return meilleur_score;
-								}
-							}
-						}
-					}
-				}
-			}
+			int score = f_min(copie, profondeur - 1, alpha, beta);
+			meilleur_score = MAX(meilleur_score, score);
+			alpha = MAX(alpha, meilleur_score);
+
+			if(elagage && beta <= alpha)
+				return meilleur_score;
 		}
-		return meilleur_score;
 	}
+	return meilleur_score;
 }
 
 /* Somme de l'avancement des pions du joueur,
@@ -653,6 +651,9 @@ void f_IA(int joueur)
 	int meilleur = (joueur == 1) ? -INFINI - 1 : INFINI + 1;
 	int bl1 = -1, bc1 = -1, bl2 = -1, bc2 = -1;
 
+	nb_noeuds = 0;
+	clock_t debut = clock();
+
 #ifdef DEBUG
 	printf("dbg: entering %s %d\n", __FUNCTION__, __LINE__);
 #endif
@@ -686,14 +687,18 @@ void f_IA(int joueur)
 					if(joueur == 1 && score > meilleur)
 					{
 						meilleur = score; 
-						alpha = MAX(alpha, score);
+						if (elagage) {
+							alpha = MAX(alpha, score);
+						}
 						bl1 = i1; bc1 = j1; 
 						bl2 = i2; bc2 = j2;
 					}
 					else if(joueur == -1 && score < meilleur)
 					{
 						meilleur = score; 
-						beta = MIN(beta, score);
+						if (elagage) {
+							beta = MIN(beta, score);
+						}
 						bl1 = i1; bc1 = j1; 
 						bl2 = i2; bc2 = j2;
 					}
@@ -701,6 +706,19 @@ void f_IA(int joueur)
 			}
 		}
 	}
+
+	double ms = 1000.0 * (clock() - debut) / CLOCKS_PER_SEC;
+	printf("elagage=%d, noeuds=%ld temps=%.1f ms\n", elagage, nb_noeuds, ms);
+
+	if (joueur == 1) {
+        cumul_noeuds_x += nb_noeuds;
+        cumul_temps_x += ms;
+        nb_coups_x++;
+    } else {
+        cumul_noeuds_o += nb_noeuds;
+        cumul_temps_o += ms;
+        nb_coups_o++;
+    }
 
 	if(bl1 != -1)
 	{
@@ -713,7 +731,6 @@ void f_IA(int joueur)
 	printf("dbg: exiting %s %d\n", __FUNCTION__, __LINE__);
 #endif
 }
-
 
 /**
  * Demande le choix du joueur humain et calcule le coup demande
@@ -759,57 +776,92 @@ void f_humain(int joueur)
 #endif
 }
 
-int main(int argv, char *argc[])
+void f_afficher_stats(int mode)
 {
-	int fin = 0,mode=0 , ret, joueur = 1;
-	printf("1 humain vs IA\n2 humain vs humain\n3 IA vs IA\n");
-	scanf("%d",&mode);
-	getchar();
+    printf("\n==================================================\n");
+    printf("              STATISTIQUES DE LA PARTIE           \n");
+    printf("==================================================\n");
 
-	plateauDeJeu = f_init_plateau();
+    if (mode == 1) // Humain vs IA (IA = o)
+    {
+        if (nb_coups_o > 0) {
+            printf("IA (o) :\n");
+            printf("  - Nombre de coups joues : %d\n", nb_coups_o);
+            printf("  - Moeuds visites en moyenne : %ld\n", cumul_noeuds_o / nb_coups_o);
+            printf("  - Temps d'execution moyen   : %.2f ms\n", cumul_temps_o / nb_coups_o);
+        }
+    }
+    else if (mode == 3) // IA vs IA
+    {
+        printf("IA 1 (x) :\n");
+        if (nb_coups_x > 0) {
+            printf("  - Nombre de coups joues : %d\n", nb_coups_x);
+            printf("  - Noeuds visites en moyenne : %ld\n", cumul_noeuds_x / nb_coups_x);
+            printf("  - Temps d'execution moyen   : %.2f ms\n", cumul_temps_x / nb_coups_x);
+        }
 
-	while (!fin)
-	{
-		f_affiche_plateau(plateauDeJeu);
-		if(mode==1)
-		{
-			if(joueur>0)
-				f_humain(joueur);
-			else
-				f_IA(joueur);
-		}
-		else if(mode==2)
-		{
-			f_humain(joueur);
-		}
-		else
-		{
-			f_IA(joueur);
-		}
-
-		if ((ret = f_gagnant()) != 0)
-		{
-			switch (ret)
-			{
-			case 1:
-				f_affiche_plateau(plateauDeJeu);
-				printf("joueur x gagne!\n");
-				fin = 1;
-				break;
-			case -1:
-				f_affiche_plateau(plateauDeJeu);
-				printf("joueur o gagne!\n");
-				fin = 1;
-				break;
-			}
-		}
-		joueur = -joueur;
-	}
-
-#ifdef DEBUG
-	printf("dbg: exiting %s %d\n", __FUNCTION__, __LINE__);
-#endif
-
-	return 0;
+        printf("\nIA 2 (o) :\n");
+        if (nb_coups_o > 0) {
+            printf("  - Nombre de coups joues : %d\n", nb_coups_o);
+            printf("  - Noeuds visites en moyenne : %ld\n", cumul_noeuds_o / nb_coups_o);
+            printf("  - Temps d'execution moyen   : %.2f ms\n", cumul_temps_o / nb_coups_o);
+        }
+    }
+    printf("==================================================\n\n");
 }
 
+int main(int argv, char *argc[])
+{
+    int fin = 0, mode = 0, ret, joueur = 1;
+    printf("1 humain vs IA\n2 humain vs humain\n3 IA vs IA\n");
+    scanf("%d", &mode);
+    getchar();
+
+    plateauDeJeu = f_init_plateau();
+
+    while (!fin)
+    {
+        f_affiche_plateau(plateauDeJeu);
+        if(mode == 1)
+        {
+            if(joueur > 0)
+                f_humain(joueur);
+            else
+                f_IA(joueur);
+        }
+        else if(mode == 2)
+        {
+            f_humain(joueur);
+        }
+        else
+        {
+            f_IA(joueur);
+        }
+
+        if ((ret = f_gagnant()) != 0)
+        {
+            switch (ret)
+            {
+            case 1:
+                f_affiche_plateau(plateauDeJeu);
+                printf("\nJoueur x gagne!\n");
+                f_afficher_stats(mode);
+                fin = 1;
+                break;
+            case -1:
+                f_affiche_plateau(plateauDeJeu);
+                printf("\nJoueur o gagne!\n");
+                f_afficher_stats(mode);
+                fin = 1;
+                break;
+            }
+        }
+        joueur = -joueur;
+    }
+
+#ifdef DEBUG
+    printf("dbg: exiting %s %d\n", __FUNCTION__, __LINE__);
+#endif
+
+    return 0;
+}
